@@ -4,6 +4,7 @@ import cors from "cors";
 import { connectDB } from "./config/db.js";
 import authRoutes from "./routes/authRoutes.js";
 import userRoutes from "./routes/userRoutes.js";
+import qrAttendanceRoutes from "./routes/qrAttendanceRoutes.js";    
 
 dotenv.config();
 const app = express();
@@ -12,7 +13,7 @@ app.use(cors());
 app.use(express.json());
 connectDB();
 
-
+app.use("/api",qrAttendanceRoutes);
 app.use("/api/auth", authRoutes);
 app.use("/api", userRoutes);
 

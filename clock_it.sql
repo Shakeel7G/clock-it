@@ -9,3 +9,11 @@ CREATE TABLE users (
   role ENUM('admin','staff') DEFAULT 'staff',
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
+
+
+CREATE TABLE attendance (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  user_id INT NOT NULL,
+  timestamp DATETIME NOT NULL,
+  date DATE NOT NULL
+);
