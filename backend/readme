@@ -1,10 +1,21 @@
 cd into backend
 npm install
-open thinderclient to test the api links 
+open thunderclient to test the api links 
 down below is basically everything needed
 
+Main tests:
 
-Here's a comprehensive list of all the tests you can perform on your Attendance System:
+1. GET http://localhost:5000/api/health : this checks if everything is running
+
+2. GET http://localhost:5000/api/qr/1?sendEmail=true : this sends an email with QR code to employee id, also gives all details including token
+
+3. GET http://localhost:5000/api/attendance/scan?token=TOKEN_FROM_STEP_2  : this sends an email that you have scanned in with times and date 
+
+4. POST http://localhost:5000/api/attendance/manual (with   {
+                                                            "userId": 1
+                                                            }  ) this manually clocks you in
+5. GET http://localhost:5000/api/debug-token/1   : this checks token generation
+```
 
 ## 🔐 **AUTHENTICATION TESTS**
 
@@ -197,14 +208,7 @@ Authorization: Bearer YOUR_JWT_TOKEN
 
 ## 🎯 **QUICK SMOKE TESTS** (Basic Functionality)
 
-### **5-Minute Quick Test:**
-```
-1. GET http://localhost:5000/api/health
-2. GET http://localhost:5000/api/qr/1
-3. GET http://localhost:5000/api/attendance/scan?token=TOKEN_FROM_STEP_2
-4. POST http://localhost:5000/api/attendance/manual (with userId: 1)
-5. GET http://localhost:5000/api/debug-token/1
-```
+
 
 ## 📝 **TESTING TIPS**
 

@@ -1,41 +1,21 @@
 import express from "express";
 import dotenv from "dotenv";
 import cors from "cors";
-import { connectDB } from "./config/db.js";
 import { errorHandler } from "./middleware/errorHandler.js";
-
-// Route imports
 import authRoutes from "./routes/authRoutes.js";
 import userRoutes from "./routes/userRoutes.js";
-import qrAttendanceRoutes from "./routes/qrAttendanceRoutes.js";
 import notificationRoutes from "./routes/notificationRoutes.js";
-import attendanceRoutes from "./routes/attendanceRoutes.js";
 
 dotenv.config();
 const app = express();
 
-// Middleware
 app.use(cors({ origin: process.env.FRONTEND_ORIGIN || "*" }));
 app.use(express.json());
-
-// Global error handlers to prevent crashes
-process.on('unhandledRejection', (reason, promise) => {
-  console.log('❌ Unhandled Rejection at:', promise, 'reason:', reason);
-});
-
-process.on('uncaughtException', (error) => {
-  console.log('❌ Uncaught Exception thrown:', error);
-});
-
-// Database connection
-connectDB();
 
 // ======================== ROUTES ========================
 app.use("/api/auth", authRoutes);
 app.use("/api/users", userRoutes);
 app.use("/api/notifications", notificationRoutes);
-app.use("/api/attendance", attendanceRoutes);
-app.use("/api", qrAttendanceRoutes); // Keep at root for QR compatibility
 
 // ======================== HOME PAGE ========================
 app.get("/", (req, res) => {
@@ -96,7 +76,7 @@ app.get("/", (req, res) => {
         border: 1px solid rgba(0,0,0,0.08);
         border-radius: 16px;
         padding: 24px;
-        max-width: 900px;
+        max-width: 800px;
         width: 90%;
         box-shadow: 0 8px 24px rgba(0,0,0,0.08);
         animation: popIn 1.3s ease forwards;
@@ -170,26 +150,18 @@ app.get("/", (req, res) => {
           </tr>
         </thead>
         <tbody>
-          <tr><td class="method post">POST</td><td class="endpoint">/api/auth/register</td><td>Register new user</td></tr>
-          <tr><td class="method post">POST</td><td class="endpoint">/api/auth/login</td><td>Login (JWT + lockout)</td></tr>
+          <tr><td class="method post">POST</td><td class="endpoint">/api/auth/signup</td><td>Register new user</td></tr>
+          <tr><td class="method post">POST</td><td class="endpoint">/api/auth/login</td><td>Login (JWT + lockout + reset)</td></tr>
           <tr><td class="method post">POST</td><td class="endpoint">/api/auth/forgot-password</td><td>Request password reset email</td></tr>
           <tr><td class="method post">POST</td><td class="endpoint">/api/auth/reset-password</td><td>Reset password via link</td></tr>
-          <tr><td class="method post">POST</td><td class="endpoint">/api/auth/unlock-account</td><td>Unlock locked account</td></tr>
-          <tr><td class="method get">GET</td><td class="endpoint">/api/auth/profile</td><td>Get user profile</td></tr>
-          <tr><td class="method put">PUT</td><td class="endpoint">/api/auth/change-password</td><td>Change password</td></tr>
-          <tr><td class="method get">GET</td><td class="endpoint">/api/users</td><td>Get all users (Admin)</td></tr>
-          <tr><td class="method get">GET</td><td class="endpoint">/api/users/profile</td><td>Update user profile</td></tr>
-          <tr><td class="method get">GET</td><td class="endpoint">/api/notifications</td><td>Get user notifications</td></tr>
-          <tr><td class="method get">GET</td><td class="endpoint">/api/attendance/my-attendance</td><td>Get user attendance</td></tr>
-          <tr><td class="method get">GET</td><td class="endpoint">/api/attendance</td><td>Get all attendance (Admin)</td></tr>
-          <tr><td class="method get">GET</td><td class="endpoint">/api/qr/:userId</td><td>Generate QR code</td></tr>
-          <tr><td class="method get">GET</td><td class="endpoint">/api/attendance/scan</td><td>Scan QR code (Public)</td></tr>
-          <tr><td class="method get">GET</td><td class="endpoint">/api/health</td><td>Health check</td></tr>
+          <tr><td class="method get">GET</td><td class="endpoint">/api/users/profile</td><td>Fetch logged-in user's profile</td></tr>
+          <tr><td class="method get">GET</td><td class="endpoint">/api/notifications</td><td>Fetch user's notifications</td></tr>
         </tbody>
       </table>
     </div>
 
-    <footer>© ${new Date().getFullYear()} ClockIt Attendance Tracker | Backend running on port ${process.env.PORT || 5000}</footer>
+    <footer>© ${new Date().getFullYear()} ClockIt Attendance Tracker | Backend running on port ${process.env.PORT || 4000
+    }</footer>
 
     <script>
       document.querySelectorAll('tr').forEach((row, i) => {
@@ -205,17 +177,13 @@ app.get("/", (req, res) => {
   res.status(200).send(html);
 });
 
-// ======================== ERROR HANDLING ========================
+// ======================== ERROR HANDLER ========================
 app.use(errorHandler);
 
-// 404 handler
-app.use((req, res) => {
-  res.status(404).json({ error: 'Route not found' });
-});
-
 // ======================== SERVER START ========================
-const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => {
-  console.log(`🚀 Server running on port ${PORT}`);
-  console.log(`📱 API Documentation: http://localhost:${PORT}`);
-});
+const PORT = process.env.PORT || 4000;
+app.listen(PORT, () =>
+  console.log(
+    `Backend Connected!! Server is running on http://localhost:${PORT}`
+  )
+);

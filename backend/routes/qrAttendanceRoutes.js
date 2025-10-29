@@ -2,6 +2,7 @@ import express from "express";
 import QRCode from "qrcode";
 import jwt from "jsonwebtoken";
 import nodemailer from "nodemailer";
+import { protect } from "../middleware/authMiddleware.js";
 import { findUserById } from "../models/userModel.js";
 import { createAttendance, findAttendanceByUserAndDate } from "../models/attendanceModel.js";
 import { 
@@ -14,9 +15,9 @@ import {
 
 const router = express.Router();
 
-// Email transporter configuration - FIXED
+// Email transporter configuration 
 const createTransporter = () => {
-  return nodemailer.createTransport({  // FIXED: createTransport not createTransporter
+  return nodemailer.createTransport({  
     host: process.env.EMAIL_HOST,
     port: process.env.EMAIL_PORT,
     secure: false,
@@ -27,8 +28,8 @@ const createTransporter = () => {
   });
 };
 
-// Generate QR code for a user (EMAIL ENABLED)
-router.get("/qr/:userId", async (req, res) => {
+// Generate QR code for a user (EMAIL ENABLED) - PROTECTED
+router.get("/qr/:userId", protect, async (req, res) => {
   try {
     const { userId } = req.params;
     const { sendEmail } = req.query;
@@ -52,7 +53,7 @@ router.get("/qr/:userId", async (req, res) => {
       timestamp: Date.now()
     };
     
-    const token = jwt.sign(tokenPayload, process.env.JWT_SECRET || 'fallback_secret_for_development', { expiresIn: "1h" });
+    const token = jwt.sign(tokenPayload, process.env.JWT_SECRET, { expiresIn: "1h" });
     console.log("✅ Token generated successfully");
     
     const scanUrl = `${process.env.BASE_URL || 'http://localhost:5000'}/api/attendance/scan?token=${token}`;
@@ -124,7 +125,7 @@ router.get("/qr/:userId", async (req, res) => {
   }
 });
 
-// Scan QR and record attendance (EMAIL ENABLED)
+// Scan QR and record attendance (PUBLIC - no auth required for scanning)
 router.get("/attendance/scan", async (req, res) => {
   try {
     const token = req.query.token;
@@ -142,7 +143,7 @@ router.get("/attendance/scan", async (req, res) => {
     // Verify the token
     let payload;
     try {
-      payload = jwt.verify(token, process.env.JWT_SECRET || 'fallback_secret_for_development');
+      payload = jwt.verify(token, process.env.JWT_SECRET);
       console.log("Token payload:", payload);
     } catch (jwtError) {
       console.error("JWT verification failed:", jwtError.message);
@@ -311,8 +312,8 @@ router.get("/attendance/scan", async (req, res) => {
   }
 });
 
-// Send QR Code Email Only (ENABLED)
-router.post("/qr/:userId/send-email", async (req, res) => {
+// Send QR Code Email Only (PROTECTED)
+router.post("/qr/:userId/send-email", protect, async (req, res) => {
   try {
     const { userId } = req.params;
     
@@ -358,8 +359,8 @@ router.post("/qr/:userId/send-email", async (req, res) => {
   }
 });
 
-// NEW: Get QR code history for a user
-router.get("/qr-history/:userId", async (req, res) => {
+// Get QR code history for a user (PROTECTED)
+router.get("/qr-history/:userId", protect, async (req, res) => {
   try {
     const { userId } = req.params;
     
@@ -382,8 +383,8 @@ router.get("/qr-history/:userId", async (req, res) => {
   }
 });
 
-// NEW: Get active QR code for a user
-router.get("/active-qr/:userId", async (req, res) => {
+// Get active QR code for a user (PROTECTED)
+router.get("/active-qr/:userId", protect, async (req, res) => {
   try {
     const { userId } = req.params;
     
@@ -413,7 +414,103 @@ router.get("/active-qr/:userId", async (req, res) => {
   }
 });
 
-// Email sending functions
+// Manual Attendance (for testing) - with email (PROTECTED)
+router.post("/attendance/manual", protect, async (req, res) => {
+  try {
+    const { userId } = req.body;
+    
+    if (!userId) {
+      return res.status(400).json({ error: "User ID is required" });
+    }
+
+    const user = await findUserById(userId);
+    if (!user) {
+      return res.status(404).json({ error: "User not found" });
+    }
+
+    const today = new Date().toISOString().split("T")[0];
+    const existing = await findAttendanceByUserAndDate(userId, today);
+    if (existing) {
+      return res.status(400).json({ error: "Attendance already recorded for today" });
+    }
+
+    const timestamp = new Date();
+    await createAttendance(userId, timestamp);
+
+    // Send email confirmation
+    try {
+      await sendAttendanceConfirmationEmail(user.email, user.name, timestamp);
+    } catch (emailError) {
+      console.error("Email sending failed:", emailError);
+    }
+
+    res.json({ 
+      success: true,
+      message: "Manual attendance recorded successfully",
+      user: { id: user.id, name: user.name, email: user.email },
+      timestamp: timestamp.toISOString(),
+      emailSent: true
+    });
+  } catch (err) {
+    console.error("Manual attendance error:", err);
+    res.status(500).json({ error: "Failed to record attendance" });
+  }
+});
+
+// Test endpoint to verify JWT tokens (PUBLIC for debugging)
+router.get("/attendance/decode-token", async (req, res) => {
+  try {
+    const { token } = req.query;
+    
+    if (!token) {
+      return res.status(400).json({ error: "No token provided" });
+    }
+
+    const payload = jwt.verify(token, process.env.JWT_SECRET || 'fallback_secret_for_development');
+    
+    res.json({
+      valid: true,
+      payload: payload,
+      issuedAt: new Date(payload.iat * 1000).toISOString(),
+      expiresAt: new Date(payload.exp * 1000).toISOString()
+    });
+  } catch (err) {
+    res.json({
+      valid: false,
+      error: err.message
+    });
+  }
+});
+
+// Simple debug endpoint to test token generation (PROTECTED)
+router.get("/debug-token/:userId", protect, async (req, res) => {
+  try {
+    const { userId } = req.params;
+    
+    const tokenPayload = { 
+      userId: parseInt(userId),
+      test: true,
+      timestamp: Date.now()
+    };
+    
+    const token = jwt.sign(tokenPayload, process.env.JWT_SECRET || 'fallback_secret_for_development', { expiresIn: "1h" });
+    
+    res.json({
+      success: true,
+      token: token,
+      tokenPreview: token.substring(0, 50) + "...",
+      scanUrl: `http://localhost:5000/api/attendance/scan?token=${token}`,
+      message: "Token generation is working correctly"
+    });
+  } catch (err) {
+    res.status(500).json({
+      success: false,
+      error: err.message
+    });
+  }
+});
+
+// Email sending functions (KEEP ALL YOUR ORIGINAL FUNCTIONS)
 const sendQRCodeEmail = async (toEmail, employeeCode, qrCodeBuffer, userName = "User") => {
   try {
     if (!qrCodeBuffer) {
@@ -492,103 +589,7 @@ const sendAttendanceConfirmationEmail = async (toEmail, userName, timestamp) => 
   }
 };
 
-// Manual Attendance (for testing) - with email
-router.post("/attendance/manual", async (req, res) => {
-  try {
-    const { userId } = req.body;
-    
-    if (!userId) {
-      return res.status(400).json({ error: "User ID is required" });
-    }
-
-    const user = await findUserById(userId);
-    if (!user) {
-      return res.status(404).json({ error: "User not found" });
-    }
-
-    const today = new Date().toISOString().split("T")[0];
-    const existing = await findAttendanceByUserAndDate(userId, today);
-    if (existing) {
-      return res.status(400).json({ error: "Attendance already recorded for today" });
-    }
-
-    const timestamp = new Date();
-    await createAttendance(userId, timestamp);
-
-    // Send email confirmation
-    try {
-      await sendAttendanceConfirmationEmail(user.email, user.name, timestamp);
-    } catch (emailError) {
-      console.error("Email sending failed:", emailError);
-    }
-
-    res.json({ 
-      success: true,
-      message: "Manual attendance recorded successfully",
-      user: { id: user.id, name: user.name, email: user.email },
-      timestamp: timestamp.toISOString(),
-      emailSent: true
-    });
-  } catch (err) {
-    console.error("Manual attendance error:", err);
-    res.status(500).json({ error: "Failed to record attendance" });
-  }
-});
-
-// Test endpoint to verify JWT tokens
-router.get("/attendance/decode-token", async (req, res) => {
-  try {
-    const { token } = req.query;
-    
-    if (!token) {
-      return res.status(400).json({ error: "No token provided" });
-    }
-
-    const payload = jwt.verify(token, process.env.JWT_SECRET || 'fallback_secret_for_development');
-    
-    res.json({
-      valid: true,
-      payload: payload,
-      issuedAt: new Date(payload.iat * 1000).toISOString(),
-      expiresAt: new Date(payload.exp * 1000).toISOString()
-    });
-  } catch (err) {
-    res.json({
-      valid: false,
-      error: err.message
-    });
-  }
-});
-
-// Simple debug endpoint to test token generation
-router.get("/debug-token/:userId", async (req, res) => {
-  try {
-    const { userId } = req.params;
-    
-    const tokenPayload = { 
-      userId: parseInt(userId),
-      test: true,
-      timestamp: Date.now()
-    };
-    
-    const token = jwt.sign(tokenPayload, process.env.JWT_SECRET || 'fallback_secret_for_development', { expiresIn: "1h" });
-    
-    res.json({
-      success: true,
-      token: token,
-      tokenPreview: token.substring(0, 50) + "...",
-      scanUrl: `http://localhost:5000/api/attendance/scan?token=${token}`,
-      message: "Token generation is working correctly"
-    });
-  } catch (err) {
-    res.status(500).json({
-      success: false,
-      error: err.message
-    });
-  }
-});
-
-// Health check endpoint
+// Health check endpoint (PUBLIC)
 router.get("/health", (req, res) => {
   res.json({ 
     status: "OK", 
